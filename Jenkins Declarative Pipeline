@@ -24,7 +24,7 @@ pipeline {
 
           try {
 
-            def snClient = new servicenow.RestClient(SN_INSTANCE, althafs, Shaik#786*123)
+            def snClient = new servicenow.RestClient(SN_INSTANCE, SN_USERNAME, SN_PASSWORD)
 
             def crData = [
 
