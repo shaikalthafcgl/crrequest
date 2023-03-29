@@ -1,0 +1,168 @@
+pipeline {
+  agent any
+  environment {
+
+    SN_INSTANCE = 'YOUR_INSTANCE' // replace with your ServiceNow instance name
+
+    SN_USERNAME = credentials('althafs') // add a credential binding for your ServiceNow username
+
+    SN_PASSWORD = credentials('Shaik#786*123') // add a credential binding for your ServiceNow password
+
+    KUBECONFIG = credentials('KUBECONFIG') // add a credential binding for your Kubernetes config file
+
+    APPROVER = 'sridhar.mandava@infosys.com' // replace with the email address of the designated approver
+
+  }
+
+  stages {
+
+    stage('Create Change Request') {
+
+      steps {
+
+        script {
+
+          try {
+
+            def snClient = new servicenow.RestClient(SN_INSTANCE, althafs, Shaik#786*123)
+
+            def crData = [
+
+              'short_description': 'Deployment of Cloudops application',
+
+              'description': 'Deploy Cloudops version 1.0.0 to production',
+
+              'assignment_group': 'Deployment Team',
+
+              'cmdb_ci': 'Kubernetes Cluster',
+
+              'u_requested_by': env.BUILD_USER_EMAIL
+
+            ]
+
+            def crSysId = snClient.create('change_request', crData)
+
+            echo "Created Change Request: ${crSysId}"
+
+            def crUrl = "https://${SN_INSTANCE}.service-now.com/change_request.do?sys_id=${crSysId}"
+
+            echo "View Change Request: ${crUrl}"
+
+    
+
+            def approvalData = [
+
+              'state': 'requested',
+
+              'approver': env.APPROVER
+
+            ]
+
+            snClient.update("change_request/${crSysId}/approval", approvalData)
+
+            echo "Requested approval from ${env.APPROVER}"
+
+          } catch (Exception ex) {
+
+            error "Failed to create change request: ${ex.getMessage()}"
+
+          }
+
+        }
+
+      }
+
+    }
+
+    
+
+    stage('Wait for Approval') {
+
+      when {
+
+        expression {
+
+          try {
+
+            def snClient = new servicenow.RestClient(SN_INSTANCE, SN_USERNAME, SN_PASSWORD)
+
+            def approval = snClient.getOne('sysapproval_approver', [
+
+              'approver': env.APPROVER,
+
+              'state': 'requested'
+
+            ])
+
+            return approval != null
+
+          } catch (Exception ex) {
+
+            error "Failed to retrieve approval request: ${ex.getMessage()}"
+
+          }
+
+        }
+
+      }
+
+      steps {
+
+        echo "Waiting for approval from ${env.APPROVER}"
+
+        script {
+
+          try {
+
+            def snClient = new servicenow.RestClient(SN_INSTANCE, SN_USERNAME, SN_PASSWORD)
+
+            def approval = snClient.getOne('sysapproval_approver', [
+
+              'approver': env.APPROVER,
+
+              'state': 'requested'
+
+            ])
+
+            while (approval != null && approval.state == 'requested') {
+
+              sleep(60)
+
+              
+
+              // Check for approval every 60 seconds
+
+              approval = snClient.getOne('sysapproval_approver', [
+
+                'approver': env.APPROVER,
+
+                'state': 'requested'
+
+              ])
+
+              if (approval == null) {
+
+                error "Approval not found for ${env.APPROVER}"
+
+              } else if (approval.state == 'approved') {
+
+                echo "Approved by ${env.APPROVER}"
+
+                snClient.update("change_request/${approval.parent.sys_id}/approval", ['state': 'approved'])
+
+                
+
+                // Deploy to Kubernetes
+
+                try {
+
+                  withKubeConfig([credentialsId: 'KUBECONFIG']) {
+
+                    // Code to deploy the application using kubectl command
+
+                  }
+
+                } catch (Exception ex) {
+
+                  error "Failed to deploy application to Kubernetes: ${ex.getMessage()
+
