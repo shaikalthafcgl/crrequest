@@ -1,0 +1,82 @@
+pipeline {
+
+    agent any
+
+    stages {
+
+        stage('Create Change Request') {
+
+            steps {
+
+                servicenowCreateChangeRequest (
+
+                    instanceUrl: 'https://<your-instance>.service-now.com',
+
+                    user: '<your-username>',
+
+                    password: credentials('servicenow-api-key'),
+
+                    shortDescription: 'Description of the change request',
+
+                    category: 'Category of the change request',
+
+                    assignmentGroup: 'Assignment group for the change request',
+
+                    assignedTo: 'User to whom the change request is assigned'
+
+                )
+
+            }
+
+        }
+
+        stage('Wait for Approval') {
+
+            steps {
+
+                servicenowWaitForApproval (
+
+                    instanceUrl: 'https://<your-instance>.service-now.com',
+
+                    user: '<your-username>',
+
+                    password: credentials('servicenow-api-key'),
+
+                    changeRequestNumber: "${SERVICENOW_CHANGE_REQUEST_NUMBER}"
+
+                )
+
+            }
+
+        }
+
+        stage('Deploy') {
+
+            steps {
+
+                // Add your deployment steps here
+
+            }
+
+        }
+
+    }
+
+    post {
+
+        success {
+
+            echo 'Deployment successful!'
+
+        }
+
+        failure {
+
+            echo 'Deployment failed.'
+
+        }
+
+    }
+
+}
+
